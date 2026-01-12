@@ -1,0 +1,134 @@
+#version: "3.12"
+services:
+  app:
+    build: ./app/
+    image: rbap-api:latest
+    container_name: rbap-api
+    restart: unless-stopped
+    env_file:
+    - ./app/.env
+    volumes:
+      - ./app:/app
+    depends_on:
+      db:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - 8080:8080
+    networks:
+      - rbap-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  ml_worker:
+    build: ./ml_worker/
+    image: rbap-ml-worker:latest
+#    container_name: rbap-ml-worker
+    restart: unless-stopped
+    volumes:
+      - ./ml_worker:/app
+    depends_on:
+      db:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - rbap-network
+    scale: 2
+
+  web:
+    image: nginx:latest
+    container_name: rbap-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      # - ./nginx/ssl:/etc/nginx/ssl
+    networks:
+      - rbap-network
+
+  db:
+      image: postgres:17
+      container_name: rbap-db
+      restart: unless-stopped
+      volumes:
+        - postgres_data:/var/lib/postgresql/data/
+#      ports:
+#        - 5432:5432
+      environment:
+        - POSTGRES_USER=${POSTGRES_USER}
+        - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+        - POSTGRES_DB=${POSTGRES_DB}
+      networks:
+        - rbap-network
+
+  rabbitmq:
+#    image: rabbitmq:management
+    image: rabbitmq:3.13.1-management-alpine
+    container_name: rabbitmq_for_rbap
+    hostname: rabbitmq
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit disk_free_limit 2147483648
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "15672:15672"  # Management UI
+      - "5672:5672"    # AMQP protocol
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+    networks:
+      - rbap-network
+
+  ollama:
+    image: ollama/ollama
+    container_name: gemma-server
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    environment:
+      - OLLAMA_MODELS=gemma3:12b
+    networks:
+      - rbap-network
+
+  ui:
+    build:
+      context: .
+      dockerfile: dockerfile.st
+    container_name: streamlit
+    depends_on:
+      - app
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://app:8080
+    volumes:
+      - ./streamlit:/app
+    networks:
+      - rbap-network
+
+volumes:
+  rabbitmq_data:
+  postgres_data:
+  ollama_data:
+
+networks:
+  rbap-network:
+    name: rbap-network
+    driver: bridge
