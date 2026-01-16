@@ -5,9 +5,13 @@ from typing import Optional
 
 # Константы
 OLLAMA_URL = 'http://ollama:11434/api/generate'
-MODEL_NAME = 'gemma3:12b'
-NUM_PREDICT = 30  # количество токенов для предсказания
-REQUEST_TIMEOUT = 10  # seconds
+MODEL_NAME = 'gemma3:1b' # модель для тестов при разработке приложения ~800мб
+# MODEL_NAME = 'gemma3:12b' # рабочая модель приложения ~8гб
+
+# ---- использование ограничителей для модели, если необходимо
+# NUM_PREDICT = 30  # количество токенов для предсказания
+# REQUEST_TIMEOUT = 10  # seconds
+
 
 # Настраиваем общий уровень логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -38,19 +42,20 @@ def do_task(text: str) -> str:
         text: Входящий текст для обработки
 
     Returns:
-        str: Краткое продолжение текста (не более 10 токенов)
+        str: Ответ по промпту
     """
     try:
         response = requests.post(
             OLLAMA_URL,
             json={
                 'model': MODEL_NAME,
-                'prompt': text,
+                # 'prompt': f'{review_prompt} {text}',
+                'prompt': f'{text}',
                 'options': {
-                    'num_predict': NUM_PREDICT
+                    # 'num_predict': NUM_PREDICT
                 }
             },
-            timeout=REQUEST_TIMEOUT
+            # timeout=REQUEST_TIMEOUT
         )
 
         logger.info(f"Response status code: {response.status_code}")

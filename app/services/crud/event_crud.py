@@ -1,3 +1,5 @@
+# В версии 1.0 все операции с моделью, crud и api по event отключены
+# до перехода к промышленным тестам с бизнес-пользователями
 from typing import List
 from sqlmodel import Session, select
 from models.event import Event

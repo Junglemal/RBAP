@@ -1,21 +1,16 @@
 import requests
 import json
 import time
-import pandas as pd
-from bs4 import BeautifulSoup
 from datetime import datetime
 import random
+import pandas as pd
+from bs4 import BeautifulSoup
 import os
-
 from sqlmodel import Session, select
 from database.database import get_database_engine
 from models.raw_parser_reviews import MortgageReview
 from services.crud import parser_crud as ReviewService
 from services.crud import parser_job_crud as JobService
-import json
-from datetime import datetime
-import random
-import time
 
 
 def create_session():
@@ -40,7 +35,7 @@ def create_session():
 
 
 def load_progress(filename):
-    """Загружает прогресс парсинга из файла"""
+    """Загружает прогресс парсера из файла"""
     progress_file = f"{filename}_progress.json"
     if os.path.exists(progress_file):
         try:
@@ -54,7 +49,7 @@ def load_progress(filename):
 
 
 def save_progress(filename, current_page, current_review, total_pages, processed_ids):
-    """Сохраняет прогресс парсинга в файл"""
+    """Сохраняет прогресс парсера в файл"""
     progress_file = f"{filename}_progress.json"
     progress = {
         'current_page': current_page,
@@ -127,7 +122,7 @@ def load_all_existing_ids(filename, save_to_db, resume=True):
 
 
 def check_review_in_database(review_id, session):
-    """Проверяет, существует ли отзыв в БД (реальная проверка)"""
+    """Проверяет, существует ли отзыв в БД перед дальнейшей работой"""
     try:
         statement = select(MortgageReview).where(MortgageReview.id == review_id)
         result = session.exec(statement).first()
@@ -138,7 +133,7 @@ def check_review_in_database(review_id, session):
 
 
 def append_to_excel(reviews_data, filename, page_number):
-    """Добавляет данные в существующий Excel файл или создает новый с проверкой дубликатов"""
+    """Добавляет данные в существующий Excel файл / создает новый с проверкой дубликатов"""
     try:
         # Загружаем существующие данные
         if os.path.exists(filename):
@@ -205,7 +200,7 @@ def create_dataframe(reviews_data, page_number):
         status = determine_review_status(review)
 
         row = {
-            # Данные из первой части (API)
+            # Данные первой страницы (страницы всех отзывов с пагинацией) (API)
             'ID': review.get('id', ''),
             'Заголовок': review.get('title', ''),
             'Пользователь (API)': review.get('user_name', ''),
@@ -221,7 +216,7 @@ def create_dataframe(reviews_data, page_number):
             'Ответ банка (API)': review.get('bank_answer_text', ''),
             'ID сотрудника': review.get('agent_id', ''),
 
-            # Данные со второй страницы
+            # Данные со второй страницы - страница конкретного отзыва
             'Пользователь (страница)': review.get('user_name_detailed', ''),
             'Город пользователя': review.get('user_city', ''),
             'Полный текст отзыва': review.get('full_text', ''),
@@ -230,7 +225,7 @@ def create_dataframe(reviews_data, page_number):
             'Рейтинг (страница)': review.get('rating_detailed', ''),
             'Ответ банка (детально)': review.get('bank_answer_detailed', ''),
 
-            # Оценки по критериям
+            # Оценки по критериям - виджет на сайте
             'Прозрачные условия': criteria_scores.get('Прозрачные условия', ''),
             'Вежливые сотрудники': criteria_scores.get('Вежливые сотрудники', ''),
             'Доступность и поддержка': criteria_scores.get('Доступность и поддержка', ''),
@@ -240,7 +235,7 @@ def create_dataframe(reviews_data, page_number):
             'Ссылка на список': review.get('link_part1', ''),
             'Ссылка на страницу': review.get('link_part2', ''),
 
-            # НОВЫЕ СТОЛБЦЫ
+            # Технические данные работы парсера
             'Дата выгрузки': current_date,
             'Страница выгрузки': page_number,
 
@@ -252,7 +247,7 @@ def create_dataframe(reviews_data, page_number):
 
 
 def determine_review_status(review):
-    """Определяет статус отзыва на основе данных - ОБНОВЛЕННАЯ ЛОГИКА"""
+    """Определяет статус отзыва на основе данных"""
     # Если есть ошибка при парсинге
     if review.get('error'):
         return 'Ошибка парсинга'
@@ -265,10 +260,11 @@ def determine_review_status(review):
     if review.get('is_countable') is True:
         return 'Зачтено'
 
-    # Если статус "Проверяется" или другие возможные статусы
+    # Если статус "Проверяется" ( или другие возможные статусы)
     if review.get('is_countable') is None:
         return 'Проверяется'
 
+    ### -------------- ПОМЕТКА ДЛЯ СЕБЯ - перед размещением на сервере, вернись к лоигке данного шага -------------- ###
     # Дополнительная проверка по наличию ответа банка
     if review.get('bank_answer_text') or review.get('bank_answer_detailed'):
         return 'Зачтено'
@@ -387,7 +383,7 @@ def parse_single_review(review_id, max_retries=3):
                 'link_part2': url,
             }
 
-            # 1. ИМЯ ПОЛЬЗОВАТЕЛЯ со страницы
+            # 1. Имя пользователя
             user_name_selectors = [
                 '[data-gtm-click*="click_author_user_rating_banks_response_page"] .l17191939 span',
                 '.l17191939 span',
@@ -404,7 +400,7 @@ def parse_single_review(review_id, max_retries=3):
                     review_details['user_name_detailed'] = user_name
                     break
 
-            # 2. ГОРОД ПОЛЬЗОВАТЕЛЯ
+            # 2. Город пользователя
             city_selectors = [
                 '.l3a372298',
                 '[class*="region"]',
@@ -423,7 +419,7 @@ def parse_single_review(review_id, max_retries=3):
                         print(f"    ✅ Город пользователя: {city}")
                         break
 
-            # 3. ПОЛНЫЙ ТЕКСТ ОТЗЫВА
+            # 3. Полный текст отзыва
             text_selectors = [
                 '.lb1789875',
                 '.markdown-inside',
@@ -445,7 +441,7 @@ def parse_single_review(review_id, max_retries=3):
                 if 'full_text' in review_details:
                     break
 
-            # 4. ДАТА ОТЗЫВА на странице
+            # 4. Дата отзыва на странице
             date_selectors = [
                 '.l10fac986',
                 '.l46c44745',
@@ -467,7 +463,7 @@ def parse_single_review(review_id, max_retries=3):
                 if 'date_detailed' in review_details:
                     break
 
-            # 5. РЕЙТИНГ на странице
+            # 5. Рейтинг / оценка на странице
             rating_selectors = [
                 '.rating-grade',
                 '[class*="rating"]',
@@ -485,7 +481,7 @@ def parse_single_review(review_id, max_retries=3):
                 if 'rating_detailed' in review_details:
                     break
 
-            # 6. ОЦЕНКИ ПО КРИТЕРИЯМ
+            # 6. Оценки по критериям / виджет
             print(f"    📈 Парсим оценки по критериям...")
 
             criteria_block = soup.select_one('.ld97a7dcf')
@@ -518,10 +514,10 @@ def parse_single_review(review_id, max_retries=3):
                     review_details['criteria_scores'] = criteria_data
                     print(f"    ✅ Собрано оценок по критериям: {len(criteria_data)}")
 
-            # 7. ID СОТРУДНИКА (из ответа банка)
+            # 7. ID сотрудника, при наличии (из ответа банка)
             print(f"    👨‍💼 Ищем ID сотрудника...")
 
-            # Ищем ответ банка на странице
+            # Поиск ответа банка, при наличии
             bank_answer_selectors = [
                 '.lcc571035',
                 '[class*="answer"]',
@@ -529,17 +525,18 @@ def parse_single_review(review_id, max_retries=3):
                 '.response-answer'
             ]
 
+            ### --- ПОМЕТКА ДЛЯ СЕБЯ -- скорректируй список, нужно перепроверить логику --- ###
             for selector in bank_answer_selectors:
                 bank_answer_section = soup.select_one(selector)
                 if bank_answer_section:
                     answer_text = bank_answer_section.get_text()
                     if any(word in answer_text.lower() for word in
-                           ['сотрудник', 'менеджер', 'специалист', 'анна', 'мария']):
+                           ['сотрудник', 'менеджер', 'специалист']):
                         review_details['bank_answer_detailed'] = clean_html_text(answer_text)
                         print(f"    ✅ Найден ответ банка с упоминанием сотрудника")
                         break
 
-            # 8. КОММЕНТАРИИ на странице
+            # 8. Комментарии на странице
             comments_data = []
             comments_selectors = [
                 '#comments',
@@ -630,7 +627,7 @@ def parse_single_review(review_id, max_retries=3):
 
 
 def get_mortgage_reviews(page=1, review_type='all', max_retries=3):
-    """Получает список отзывов с использованием сессии"""
+    """Получает список отзывов (первичная логика - где нашёл JSON ответ сайта)"""
     url = "https://www.banki.ru/services/responses/list/ajax/"
 
     params = {
@@ -744,7 +741,7 @@ def save_review_to_database(review_data, page_number, session=None):
         created_at_api = parse_date(review_data.get('date_create'))
         created_at_page = parse_date(review_data.get('date_detailed'))
 
-        # Подготавливаем данные для модели
+        # Подготавливаем данные согласно валидации
         model_data = {
             'id': review_data.get('id'),
             'title': review_data.get('title'),
@@ -776,7 +773,7 @@ def save_review_to_database(review_data, page_number, session=None):
             'error': review_data.get('error'),
         }
 
-        # Создаем модель
+        # Создаем переменную-модель
         review_model = MortgageReview(**model_data)
 
         # Сохраняем в БД
@@ -794,7 +791,7 @@ def save_review_to_database(review_data, page_number, session=None):
 
 
 def parse_date(date_str):
-    """Парсит дату из строки"""
+    """Парсер даты из строки"""
     if not date_str:
         return None
 
@@ -843,25 +840,25 @@ def full_parse_cycle(
     print(f"💾 Сохранение в Excel: {filename}")
     print(f"🎯 Цель: страницы {start_page}-{end_page or 'до конца'}")
 
-    # Создаем сессию для БД если нужно сохранять туда
+    # Создание сессии для БД если есть признак сохранения в таблицу
     db_session = None
     if save_to_db:
         engine = get_database_engine()
         db_session = Session(engine)
 
-        # Создаем задачу парсинга
+        # Создаем задачу парсера
         if job_id is None:
             job = JobService.create_job(db_session)
             job_id = job.id
             print(f"📋 Создана задача парсинга ID: {job_id}")
 
-    # ⭐⭐⭐ ЗАГРУЖАЕМ ВСЕ СУЩЕСТВУЮЩИЕ ID ИЗ ВСЕХ ИСТОЧНИКОВ ⭐⭐⭐
+    # ⭐ Загружаем все имеющиеся ID из всех файлов и источников для проверки ⭐
     processed_ids = load_all_existing_ids(filename, save_to_db, resume)
 
     current_page = start_page
     current_review = 0
 
-    # Если возобновляем, загружаем позицию с последней страницы
+    # Если возобновляем работу, загружаем позицию с последней страницы
     if resume:
         progress = load_progress(filename)
         if progress:
@@ -927,13 +924,13 @@ def full_parse_cycle(
             for i, review in enumerate(reviews, 1):
                 review_id = review.get('id')
 
-                # ⭐⭐⭐ ПЕРВАЯ ПРОВЕРКА: В ПАМЯТИ (быстрая) ⭐⭐⭐
+                # ⭐ ПЕРВАЯ ПРОВЕРКА: В ПАМЯТИ (быстрая) ⭐
                 if review_id in processed_ids:
                     duplicates_skipped += 1
                     print(f"  ⏭️  Пропускаем ДУБЛИКАТ в памяти {i}/{len(reviews)} (ID: {review_id})")
                     continue
 
-                # ⭐⭐⭐ ВТОРАЯ ПРОВЕРКА: В БД (двойная проверка) ⭐⭐⭐
+                # ⭐ ВТОРАЯ ПРОВЕРКА: В БД (двойная проверка) ⭐
                 if save_to_db and db_session:
                     if check_review_in_database(review_id, db_session):
                         duplicates_skipped += 1
@@ -957,7 +954,7 @@ def full_parse_cycle(
 
                 review_data.update(detailed_data)
 
-                # СОХРАНЕНИЕ В БД
+                # Сохранение в БД
                 if save_to_db:
                     try:
                         save_review_to_database(review_data, page, db_session)
@@ -965,7 +962,7 @@ def full_parse_cycle(
                     except Exception as e:
                         print(f"     ❌ Ошибка сохранения в БД: {e}")
 
-                # Сохранение для Excel
+                # Сохранение в Excel
                 all_reviews.append(review_data)
                 processed_ids.add(review_id)  # Добавляем ID в обработанные
                 review_counter += 1
@@ -1061,7 +1058,7 @@ def full_parse_cycle(
         if db_session:
             db_session.close()
 
-        # Удаляем файл прогресса
+        # Удаляем JSON файл с прогрессом работы парсера
         progress_file = f"{filename}_progress.json"
         if os.path.exists(progress_file):
             os.remove(progress_file)
@@ -1076,14 +1073,14 @@ def run_parser_job(
         save_to_db: bool = True,
         job_id: int | None = None
 ):
-    """Запуск парсинга через задачу - использует full_parse_cycle"""
+    """Запуск парсера через задачу -  full_parse_cycle"""
 
     try:
         print(f"🚀 Запуск парсинга через задачу...")
         print(f"📄 Страницы: {start_page}-{end_page or 'конец'}")
         print(f"💾 Сохранение в БД: {'Да' if save_to_db else 'Нет'}")
 
-        # Просто вызываем full_parse_cycle с нужными параметрами
+        # Вызываем full_parse_cycle с заданными параметрами
         processed_ids = full_parse_cycle(
             start_page=start_page,
             end_page=end_page,
@@ -1109,14 +1106,3 @@ def run_parser_job(
 def _parse_date(value: str | None):
     """Парсит дату из строки (для обратной совместимости)"""
     return parse_date(value)
-
-# Примеры запуска (закомментированы)
-# if __name__ == "__main__":
-#     # Тестовый запуск одной страницы
-#     full_parse_cycle(
-#         start_page=1,
-#         end_page=1,
-#         filename="test.xlsx",
-#         save_to_db=True,
-#         delay=1
-#     )

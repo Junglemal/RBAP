@@ -2,6 +2,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional, TYPE_CHECKING
 from sqlmodel import SQLModel, Field, Relationship
+from enum import Enum
+
 
 if TYPE_CHECKING:
     from models.user import User
@@ -15,6 +17,11 @@ class TaskStatus(str, Enum):
     COMPLETED = "completed"  # Выполнена
     FAILED = "failed"  # Ошибка выполнения
 
+class OperationType(str, Enum):
+    """Типы операций ML задачи"""
+    SINGLE = "single_operation"  # Единичный запрос
+    BATCH = "batch_operation"    # Пакетная обработка
+
 
 class MLTaskBase(SQLModel):
     """
@@ -22,27 +29,28 @@ class MLTaskBase(SQLModel):
 
     Атрибуты:
         status (TaskStatus): Текущий статус задачи
-        result (Optional[str]): Результат обработки ML моделью
+        result (Optional[str]): Результат обработки ML моделью (ответ LLM по промпту)
+        operation_type (OperationType): Тип операции
+        review_id (Optional[int]): ID отзыва
+        user_city (Optional[str]): Город пользователя
+        bank_id (Optional[int]): ID банка
+        bank_name (Optional[str]): Название банка
+        created_at_api: Optional[datetime]: Дата отзыва
     """
     status: TaskStatus = Field(default=TaskStatus.NEW)
     result: Optional[str] = Field(default=None)
     question: Optional[str] = Field(default=None)
-
+    operation_type: OperationType = Field(default=OperationType.SINGLE)
+    review_id: Optional[int] = Field(default=None)
+    user_city: Optional[str] = Field(default=None)
+    bank_id: Optional[int] = Field(default=None)
+    bank_name: Optional[str] = Field(default=None)
+    created_at_api: Optional[datetime] = Field(default=None)
 
 class MLTask(MLTaskBase, table=True):
-    """
-    Модель ML задачи для хранения в базе данных.
-
-    Атрибуты:
-        id (int): Уникальный идентификатор задачи
-        event_id (int): ID связанного события
-        user_id (int): ID пользователя, создавшего задачу
-        created_at (datetime): Время создания задачи
-        updated_at (datetime): Время последнего обновления
-        creator (User): Связь с создателем
-    """
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.user_id")
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -56,6 +64,11 @@ class MLTask(MLTaskBase, table=True):
         return {
             "task_id": self.id,
             "question": self.question,
+            "review_id": self.review_id,
+            "operation_type": self.operation_type,
+            "user_city": self.user_city,
+            "bank_id": self.bank_id,
+            "bank_name": self.bank_name
         }
 
 
@@ -64,6 +77,11 @@ class MLTaskCreate(MLTaskBase):
     question: str
     user_id: int
     status: TaskStatus
+    operation_type: OperationType = Field(default=OperationType.SINGLE)
+    review_id: Optional[int] = None
+    user_city: Optional[str] = None
+    bank_id: Optional[int] = None
+    bank_name: Optional[str] = None
 
 
 class MLTaskUpdate(MLTaskBase):

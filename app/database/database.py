@@ -4,8 +4,10 @@ from .config import get_settings
 from auth.hash_password import HashPassword
 from models.user import User
 from models.event import Event
+from models.mltask import MLTask
 from models.raw_parser_reviews import MortgageReview
 from services.crud.user_crud import get_user_by_id, get_user_by_email, get_all_users, create_user
+
 
 def get_database_engine():
     """

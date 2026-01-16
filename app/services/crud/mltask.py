@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import List, Optional
 from sqlmodel import Session, select
-
 from models.mltask import MLTask, MLTaskCreate, MLTaskUpdate, TaskStatus
+from models.raw_parser_reviews import MortgageReview
 
 
 class MLTaskService:
@@ -10,12 +10,20 @@ class MLTaskService:
         self.session = session
 
     def create(self, task_create: MLTaskCreate) -> MLTask:
-        """Создает новую ML задачу"""
+        """Создает новую задачу для LLM"""
         task = MLTask(
             status=task_create.status,
             question=task_create.question,
-            user_id=task_create.user_id
+            user_id=task_create.user_id,
+
+            operation_type=task_create.operation_type,
+            review_id=task_create.review_id,
+            user_city=task_create.user_city,
+            bank_id=task_create.bank_id,
+            bank_name=task_create.bank_name,
+            created_at_api=task_create.created_at_api
         )
+
         self.session.add(task)
         self.session.commit()
         self.session.refresh(task)

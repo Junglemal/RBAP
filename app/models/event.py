@@ -1,10 +1,11 @@
-#from email.policy import default
-from typing import Optional, List, Any
-from typing import Optional, TYPE_CHECKING
+# В версии 1.0 все операции с моделью, crud и api по event отключены
+# до перехода к промышленным тестам с бизнес-пользователями
+from typing import Optional, List, Any, TYPE_CHECKING
 from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 from sqlalchemy import JSON
 import uuid
 import datetime
+# from email.policy import default
 
 if TYPE_CHECKING:
     from models.event import Event

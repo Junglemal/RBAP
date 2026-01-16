@@ -1,9 +1,9 @@
-# models/parser_run.py
 from pydantic import BaseModel
 from typing import Optional
 
 
 class ParserRunRequest(BaseModel):
+    """Модель для конфигурации запуска парсера"""
     start_page: int = 1
     end_page: Optional[int] = None
     delay: int = 2
@@ -11,8 +11,8 @@ class ParserRunRequest(BaseModel):
     save_to_db: bool = True
     filename: Optional[str] = None
 
-    model_config = {  # Используем model_config вместо Config
-        "json_schema_extra": {  # Используем json_schema_extra вместо schema_extra
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "start_page": 1,
                 "end_page": 10,

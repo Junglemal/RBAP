@@ -4,7 +4,7 @@ from models.user import User
 
 
 def create_user(user: User, session: Session) -> User:
-    """создание пользователя"""
+    """Создание пользователя"""
     user_to_add = User(
         user_id = user.user_id,
         name = user.name,
@@ -14,7 +14,6 @@ def create_user(user: User, session: Session) -> User:
         password = user.password,
         is_admin = user.is_admin
     )
-
     session.add(user_to_add)
     session.commit()
     session.refresh(user_to_add)

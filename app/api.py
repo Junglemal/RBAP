@@ -1,16 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+import logging
+from database.database import init_db
+from database.config import get_settings
+from services.logging.logging import get_logger
 from routes.home import home_route
 from routes.user import user_route
 from routes.event import event_route
 from routes.parser import parser_route
 from routes.ml import ml_route
-from database.database import init_db
-from database.config import get_settings
-from api_analytics.fastapi import Analytics
-import uvicorn
-import logging
-from services.logging.logging import get_logger
+from typing import Dict, List, Optional, Any
+# from api_analytics.fastapi import Analytics
+
 
 logger = get_logger(logger_name=__name__)
 settings = get_settings()
@@ -30,8 +32,8 @@ def create_application() -> FastAPI:
         redoc_url="/api/redoc"
     )
 
-    #возможность добавления аналитики
-    #app.add_middleware(Analytics, api_key="39d40b20-6328-4a67-ae74-940f0cab5737")  # Добавление промежуточного слоя
+    # возможность добавления аналитики
+    # app.add_middleware(Analytics, api_key="----")  # Добавление промежуточного слоя
 
     # Configure CORS
     app.add_middleware(
@@ -46,9 +48,8 @@ def create_application() -> FastAPI:
     app.include_router(home_route, tags=['Home'])
     app.include_router(ml_route, prefix='/api/ml', tags=['ML'])
     app.include_router(user_route, prefix='/api/users', tags=['Users'])
-    app.include_router(event_route, prefix='/api/events', tags=['Events'])
+    # app.include_router(event_route, prefix='/api/events', tags=['Events'])
     app.include_router(parser_route, prefix="/api/parser", tags=["Parser"])
-
 
     return app
 

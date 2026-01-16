@@ -13,7 +13,7 @@ home_route = APIRouter()
 async def index() -> str:
     """Приветственное слово"""
     try:
-        return {"message": "Рады приветстовать Вас на платформе анализа отзывов!"}
+        return {"message": "Рады приветстовать Вас на платформе анализа отзывов! При возникновении вопросов, обращайтесь к tg @junglemal"}
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal server error")
 

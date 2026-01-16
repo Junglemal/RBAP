@@ -39,7 +39,7 @@ class MortgageReview(SQLModel, table=True):
 
     agent_id: Optional[int] = None
 
-    # 🔥 ВАЖНО: JSON-поля
+    # JSON-поля по дополнительным атрибутам - виджет оценок
     criteria_scores: Optional[Dict] = Field(
         default=None,
         sa_column=Column(JSON, nullable=True)

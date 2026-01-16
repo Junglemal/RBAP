@@ -1,9 +1,11 @@
+# В версии 1.0 все операции с моделью, crud и api по event отключены
+# до перехода к промышленным тестам с бизнес-пользователями
 from fastapi import APIRouter, Body, HTTPException, status, Depends, Query
 from database.database import get_session
-from models.event import Event
-from models.user import User
 from typing import Optional, List, Any
 from sqlmodel import Session, select
+from models.event import Event
+from models.user import User
 from services.crud import event_crud as EventService
 from services.crud.event_crud import new_event, get_all_events, get_event_by_id, get_user_events_by_id
 
@@ -72,7 +74,7 @@ async def get_event_by_id_endpoint(
         email: str,
         session=Depends(get_session)
 ) -> dict:
-    """получение события по id события"""
+    """получение события по id"""
     current_user = get_current_user(email, session)
     events = get_event_by_id(event_id, session)
 

@@ -1,31 +1,23 @@
-# routes/parser.py
-
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from fastapi import Body
-from typing import List, Optional, Dict, Any
 import logging
 from datetime import datetime
-
-from sqlmodel import Session, select, func, desc
-
+from typing import List, Optional, Dict, Any
 from database.database import get_session
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Body
+from sqlmodel import Session, select, func, desc
 from parser.parser import full_parse_cycle
-
 from models.raw_parser_reviews import MortgageReview
 from models.parser_run import ParserRunRequest
 from models.parser_job import ParserJob
 
+
 logger = logging.getLogger(__name__)
 
-parser_route = APIRouter(prefix="/parser")
+parser_route = APIRouter()
 
-
-# =========================
-# Helper functions
-# =========================
+# -------- Вспомогательные функции
 
 def review_to_dict(review: MortgageReview) -> Dict[str, Any]:
-    """Преобразование отзыва MortgageReview в словарь"""
+    """Преобразование отзыва в словарь"""
     return {
         "id": review.id,
         "title": review.title,
@@ -58,7 +50,7 @@ def review_to_dict(review: MortgageReview) -> Dict[str, Any]:
 
 
 def job_to_dict(job: ParserJob) -> Dict[str, Any]:
-    """Преобразование задачи ParserJob в словарь"""
+    """Преобразование таски парсера в словарь"""
     return {
         "id": job.id,
         "status": job.status,
@@ -71,15 +63,13 @@ def job_to_dict(job: ParserJob) -> Dict[str, Any]:
     }
 
 
-# =========================
-# Parser control
-# =========================
+# -------- Логика управления парсером
 
 @parser_route.post(
     "/run",
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Run mortgage reviews parser",
-    description="Запуск парсера отзывов в фоне с сохранением в БД и Excel"
+    summary="Запуск парсера с сохранением данных в БД и/или Excel",
+    description="Run mortgage reviews parser"
 )
 async def run_parser(
         background_tasks: BackgroundTasks,
@@ -87,7 +77,7 @@ async def run_parser(
         session: Session = Depends(get_session),
 ) -> dict:
     try:
-        # Создаем задачу парсинга в БД
+        # Формируем статус работы / задачи парсера в БД
         job = ParserJob(
             status="running",
             message="Parser job created"
@@ -96,7 +86,7 @@ async def run_parser(
         session.commit()
         session.refresh(job)
 
-        # Запускаем парсер в фоне
+        # Запускаем парсер
         background_tasks.add_task(
             full_parse_cycle,
             start_page=data.start_page,
@@ -127,8 +117,8 @@ async def run_parser(
 @parser_route.post(
     "/run/test",
     status_code=status.HTTP_200_OK,
-    summary="Test parser with one page",
-    description="Тестовый запуск парсера на одной странице"
+    summary="Тести парсера / выгрузка единичной страницы",
+    description="Test parser with one specific page"
 )
 async def test_parser(
         background_tasks: BackgroundTasks,
@@ -169,10 +159,7 @@ async def test_parser(
             detail=f"Failed to start test parser: {str(e)}"
         )
 
-
-# =========================
-# Job status
-# =========================
+# -------- Логика по статусам / выгрузка всех задач парсера
 
 @parser_route.get(
     "/jobs",
@@ -196,7 +183,6 @@ async def get_all_jobs(
             detail=f"Failed to get jobs: {str(e)}"
         )
 
-
 @parser_route.get(
     "/jobs/{job_id}",
     summary="Get parser job by ID",
@@ -219,7 +205,6 @@ async def get_job_by_id(
             detail=f"Failed to get job: {str(e)}"
         )
 
-
 @parser_route.get(
     "/jobs/{job_id}/reviews",
     summary="Get reviews from specific job",
@@ -230,7 +215,7 @@ async def get_job_reviews(
         offset: int = 0,
         session: Session = Depends(get_session)
 ) -> List[Dict[str, Any]]:
-    """Получить отзывы (временно все, без фильтрации по job_id)"""
+    """Получить отзывы по job_id)"""
     try:
         # Проверяем существование задачи
         job = session.get(ParserJob, job_id)
@@ -248,10 +233,7 @@ async def get_job_reviews(
             detail=f"Failed to get job reviews: {str(e)}"
         )
 
-
-# =========================
-# Reviews - ПЕРЕНОСИМ ДО {review_id}
-# =========================
+# -------- Логика выгрузки отзывов
 
 @parser_route.get(
     "/reviews",
@@ -274,7 +256,6 @@ async def get_all_reviews(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get reviews: {str(e)}"
         )
-
 
 @parser_route.get(
     "/reviews/search",
@@ -313,7 +294,6 @@ async def search_reviews(
             detail=f"Failed to search reviews: {str(e)}"
         )
 
-
 @parser_route.get(
     "/reviews/bank/{bank_id}",
     summary="Get parsed reviews by bank",
@@ -343,10 +323,9 @@ async def get_reviews_by_bank(
             detail=f"Failed to get bank reviews: {str(e)}"
         )
 
-
-# =========================
-# Single review operations
-# =========================
+# -------- Логика выгрузки / удаления штучных отзывов
+# + удаление отзывов по статусу
+# (необходимо при отчистке отзывов при переходе их с проверки к новому статусу на сайте)
 
 @parser_route.get(
     "/reviews/{review_id}",
@@ -369,7 +348,6 @@ async def get_review_by_id(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get review: {str(e)}"
         )
-
 
 @parser_route.delete(
     "/reviews/{review_id}",
@@ -395,7 +373,6 @@ async def delete_review_by_id(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete review: {str(e)}"
         )
-
 
 @parser_route.delete(
     "/reviews/status/{status_name}",
@@ -429,9 +406,7 @@ async def delete_reviews_by_status(
         )
 
 
-# =========================
-# Statistics
-# =========================
+# -------- Формирование статистики по работе парсера и данным
 
 @parser_route.get(
     "/stats/summary",
@@ -475,7 +450,6 @@ async def get_parser_stats(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get parser statistics: {str(e)}"
         )
-
 
 @parser_route.get(
     "/stats/banks",
@@ -529,10 +503,7 @@ async def get_bank_stats(
             detail=f"Failed to get bank statistics: {str(e)}"
         )
 
-
-# =========================
-# Health check
-# =========================
+# -------- Функции проверки работоспособности парсера // Healthcheck
 
 @parser_route.get(
     "/health",
@@ -541,7 +512,7 @@ async def get_bank_stats(
 async def health_check(
         session: Session = Depends(get_session)
 ) -> Dict[str, Any]:
-    """Проверка здоровья API"""
+    """Healthcheck"""
     try:
         # Проверяем подключение к БД
         review_count = session.exec(select(func.count(MortgageReview.id))).one()
@@ -564,9 +535,7 @@ async def health_check(
         }
 
 
-# =========================
-# Job utilities
-# =========================
+# -------- Вспомогательная функция по обновлению статусов
 
 @parser_route.put(
     "/jobs/{job_id}/update",

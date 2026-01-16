@@ -4,6 +4,7 @@ from typing import Optional
 
 
 class ParserJob(SQLModel, table=True):
+    """Модель для обновления статуса работы парсера"""
     __tablename__ = "parser_jobs"
 
     id: Optional[int] = Field(default=None, primary_key=True)

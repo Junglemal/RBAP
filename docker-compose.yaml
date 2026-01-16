@@ -102,10 +102,44 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+
     environment:
       - OLLAMA_MODELS=gemma3:12b
+      - OLLAMA_NUM_GPU=1
+      - OLLAMA_GPU_LAYERS=40
+      - OLLAMA_KEEP_ALIVE=15m
+
+    shm_size: "24gb"
     networks:
       - rbap-network
+
+# Отключена в текущей версии проекта
+#  chromadb:
+#    image: chromadb/chroma:1.4.2.dev15
+#    image: chromadb/chroma:latest
+#    container_name: chromadb
+#    restart: unless-stopped
+#    volumes:
+#      - ./chroma-data:/data
+#    ports:
+#      - "8000:8000"
+#    environment:
+#      - IS_PERSISTENT=TRUE
+#    depends_on:
+#      db:
+#        condition: service_started
+#      rabbitmq:
+#        condition: service_healthy
+#    networks:
+#      - rbap-network
 
   ui:
     build:
@@ -127,6 +161,7 @@ volumes:
   rabbitmq_data:
   postgres_data:
   ollama_data:
+  chroma_data:
 
 networks:
   rbap-network:
